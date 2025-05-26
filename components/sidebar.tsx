@@ -29,7 +29,6 @@ export function Sidebar({ memos, activeMemoId, onSelectMemo, onNewMemo, isOpen, 
       setFilteredMemos(
         memos.filter(
           (memo) =>
-            memo.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
             (memo.content && memo.content.toLowerCase().includes(searchQuery.toLowerCase())),
         ),
       )
@@ -90,15 +89,14 @@ export function Sidebar({ memos, activeMemoId, onSelectMemo, onNewMemo, isOpen, 
               >
                 <div className="flex items-center w-full min-w-0">
                   <div className="flex-1 flex flex-col items-start text-left min-w-0">
-                    <span className="font-medium truncate w-full">{memo.title || "無題"}</span>
-                    <span className="text-xs text-muted-foreground mt-1">
-                      {format(new Date(memo.updated_at), "yyyy年MM月dd日 HH:mm", { locale: ja })}
-                    </span>
                     {memo.content && (
-                      <span className="text-sm text-muted-foreground mt-1 w-full truncate block">
+                      <span className="text-sm text-muted-foreground w-full truncate block">
                         {memo.content}
                       </span>
                     )}
+                    <span className="text-xs text-muted-foreground mt-1">
+                      {format(new Date(memo.updated_at), "yyyy年MM月dd日 HH:mm", { locale: ja })}
+                    </span>
                   </div>
                   {openMenuId === memo.id ? (
                     <div

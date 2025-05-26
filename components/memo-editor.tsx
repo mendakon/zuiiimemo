@@ -5,32 +5,31 @@ import type React from "react"
 import { useState, useEffect, useRef, useCallback } from "react"
 import type { Memo } from "@/types"
 import { updateMemo, createMemo } from "@/app/actions"
-import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Trash2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Loader2 } from "lucide-react"
 
 interface MemoEditorProps {
   memo?: Memo
   isNew?: boolean
   onSave?: (memo: Memo) => void
   onDelete?: (id: string) => void
+  onSavingChange?: (isSaving: boolean) => void
 }
 
-export function MemoEditor({ memo, isNew = false, onSave, onDelete }: MemoEditorProps) {
-  const [title, setTitle] = useState(memo?.title || "")
+export function MemoEditor({ memo, isNew = false, onSave, onSavingChange }: MemoEditorProps) {
   const [content, setContent] = useState(memo?.content || "")
-  const [isSaving, setIsSaving] = useState(false)
-  const [autoTitle, setAutoTitle] = useState(false)
+  const [, setIsSaving] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const [isFocused, setIsFocused] = useState(false)
 
   // 初期値を保存して変更を検出するための参照
-  const initialTitleRef = useRef(memo?.title || "")
   const initialContentRef = useRef(memo?.content || "")
+
+  // メモが変更されたときにコンテンツを更新
+  useEffect(() => {
+    setContent(memo?.content || "")
+    initialContentRef.current = memo?.content || ""
+  }, [memo])
 
   useEffect(() => {
     if (isNew && textareaRef.current) {
@@ -38,59 +37,30 @@ export function MemoEditor({ memo, isNew = false, onSave, onDelete }: MemoEditor
     }
   }, [isNew])
 
-  useEffect(() => {
-    if (!isFocused && !isNew) {
-      if (memo) {
-        setTitle(memo.title)
-        setContent(memo.content || "")
-        setAutoTitle(false)
-        initialTitleRef.current = memo.title
-        initialContentRef.current = memo.content || ""
-        setHasChanges(false)
-      }
-    }
-    // isNew時は初期化しない
-  }, [memo, isFocused, isNew])
-
-  // コンテンツの最初の行をタイトルとして使用
-  useEffect(() => {
-    if (autoTitle && content) {
-      const firstLine = content.split("\n")[0].trim()
-      if (firstLine) {
-        const newTitle = firstLine.length > 50 ? firstLine.substring(0, 50) + "..." : firstLine
-        setTitle(newTitle)
-      } else {
-        setTitle("無題のメモ")
-      }
-    }
-  }, [content, autoTitle])
-
   // 変更を検出
   useEffect(() => {
-    const titleChanged = title !== initialTitleRef.current
     const contentChanged = content !== initialContentRef.current
-    setHasChanges(titleChanged || contentChanged)
-  }, [title, content])
+    setHasChanges(contentChanged)
+  }, [content])
 
   // 自動保存処理
   const saveChanges = useCallback(async () => {
-    if (!hasChanges || !title) return
+    if (!hasChanges || !content) return
 
     setIsSaving(true)
+    onSavingChange?.(true)
     try {
       let savedMemo
 
       if (isNew) {
-        savedMemo = await createMemo({ title, content })
+        savedMemo = await createMemo({ content })
         if (savedMemo) {
-          initialTitleRef.current = savedMemo.title
           initialContentRef.current = savedMemo.content || ""
           setHasChanges(false)
         }
       } else if (memo) {
-        savedMemo = await updateMemo(memo.id, { title, content })
+        savedMemo = await updateMemo(memo.id, { content })
         if (savedMemo) {
-          initialTitleRef.current = savedMemo.title
           initialContentRef.current = savedMemo.content || ""
           setHasChanges(false)
         }
@@ -103,8 +73,9 @@ export function MemoEditor({ memo, isNew = false, onSave, onDelete }: MemoEditor
       console.error("メモの保存に失敗しました:", error)
     } finally {
       setIsSaving(false)
+      onSavingChange?.(false)
     }
-  }, [title, content, hasChanges, isNew, memo, onSave])
+  }, [content, hasChanges, isNew, memo, onSave, onSavingChange])
 
   // 入力後の自動保存
   useEffect(() => {
@@ -132,10 +103,6 @@ export function MemoEditor({ memo, isNew = false, onSave, onDelete }: MemoEditor
     }
   }
 
-  const handleDelete = async () => {
-    if (!memo || !onDelete) return
-    onDelete(memo.id)
-  }
 
   // Tabキーでインデントを挿入する処理
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -210,39 +177,11 @@ export function MemoEditor({ memo, isNew = false, onSave, onDelete }: MemoEditor
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between p-4 border-b">
-        <div className="flex-1 flex items-center">
-          <Input
-            value={title}
-            onChange={(e) => {
-              setTitle(e.target.value)
-              setAutoTitle(false)
-            }}
-            onBlur={() => { setIsFocused(false); handleBlur(); }}
-            onFocus={() => setIsFocused(true)}
-            placeholder="タイトル"
-            className="text-lg font-medium border-none shadow-none focus-visible:ring-0"
-          />
-          {isSaving && (
-            <div className="ml-2 text-muted-foreground flex items-center">
-              <Loader2 className="h-4 w-4 animate-spin mr-1" />
-              <span className="text-xs">保存中...</span>
-            </div>
-          )}
-        </div>
-        {!isNew && (
-          <Button variant="ghost" size="icon" onClick={handleDelete}>
-            <Trash2 className="h-5 w-5" />
-            <span className="sr-only">削除</span>
-          </Button>
-        )}
-      </div>
       <Textarea
         ref={textareaRef}
-        value={content || ""}
+        value={content}
         onChange={(e) => setContent(e.target.value)}
-        onBlur={() => { setIsFocused(false); handleBlur(); }}
-        onFocus={() => setIsFocused(true)}
+        onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         placeholder="ここにメモを入力..."
         className="flex-1 resize-none border-none p-4 focus-visible:ring-0 text-base font-mono"

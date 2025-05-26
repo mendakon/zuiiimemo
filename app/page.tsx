@@ -14,7 +14,9 @@ export default function Home() {
   const [isNewMemo, setIsNewMemo] = useState(true)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const [lastSavedId, setLastSavedId] = useState<string | null>(null)
+  const [, setLastSavedId] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // メモの一覧を取得
   const fetchMemos = async () => {
@@ -46,7 +48,6 @@ export default function Home() {
 
   const handleSaveMemo = (memo: Memo) => {
     // 同じメモが短時間に連続して保存された場合は通知しない
-    const isRepeatedSave = memo.id === lastSavedId
     setLastSavedId(memo.id)
 
     if (isNewMemo) {
@@ -61,11 +62,27 @@ export default function Home() {
   }
 
   const handleDeleteMemo = async (id: string) => {
-    const success = await deleteMemo(id)
-    if (success) {
-      setMemos(memos.filter((memo) => memo.id !== id))
-      setActiveMemo(null)
-      setIsNewMemo(true)
+    setIsDeleting(true)
+    try {
+      const success = await deleteMemo(id)
+      if (success) {
+        const updatedMemos = memos.filter((memo) => memo.id !== id)
+        setMemos(updatedMemos)
+        
+        // 削除されたメモが現在のアクティブメモの場合
+        if (activeMemo?.id === id) {
+          // 最新のメモがある場合はそれを選択、なければ新規メモモードに
+          if (updatedMemos.length > 0) {
+            setActiveMemo(updatedMemos[0])
+            setIsNewMemo(false)
+          } else {
+            setActiveMemo(null)
+            setIsNewMemo(true)
+          }
+        }
+      }
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -90,13 +107,20 @@ export default function Home() {
       />
 
       <div className="flex flex-col h-full">
-        <Header onOpenSidebar={() => setIsSidebarOpen(true)} onNewMemo={handleNewMemo} />
+        <Header 
+          onOpenSidebar={() => setIsSidebarOpen(true)} 
+          onNewMemo={handleNewMemo}
+          isNew={isNewMemo}
+          isSaving={isSaving || isDeleting}
+          onDelete={activeMemo ? () => handleDeleteMemo(activeMemo.id) : undefined}
+        />
         <main className="flex-1">
           <MemoEditor
             memo={activeMemo || undefined}
             isNew={isNewMemo}
             onSave={handleSaveMemo}
             onDelete={handleDeleteMemo}
+            onSavingChange={setIsSaving}
           />
         </main>
       </div>
